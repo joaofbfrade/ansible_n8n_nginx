@@ -1,0 +1,95 @@
+---
+- hosts: localhost
+  become: yes
+  tasks:
+    - name: Install Docker Engine
+      apt:
+        name: docker.io
+        state: present
+    - name: Install Docker CLI
+      apt:
+        name: docker-compose
+        state: present
+    - name: Start Docker service
+      service:
+        name: docker
+        state: started
+        enabled: true
+
+    - name: Pull nginx Docker image
+      docker_image:
+        name: nginx
+        source: pull
+
+    - name: Create a custom Docker network
+      docker_network:
+        name: n8n_network
+        state: present
+
+    - name: Create Docker n8n volume
+      community.docker.docker_volume:
+        name: n8n_data
+        state: present
+
+    - name: Run n8n container
+      community.docker.docker_container:
+        name: n8n
+        image: docker.n8n.io/n8nio/n8n
+        state: started
+        restart_policy: always
+        networks:
+          - name: n8n_network
+        ports:
+          - "5678:5678"
+        volumes:
+          - "n8n_data:/home/node/.n8n"
+        interactive: no
+        tty: true
+        detach: yes
+
+    - name: Create Nginx configuration directory on host
+      file:
+        path: /nginx-config
+        state: directory
+
+    - name: Create nginx volume
+      docker_volume:
+        name: nginx-data
+        driver: local
+
+    - name: Create Nginx reverse proxy configuration
+      copy:
+        dest: "/nginx-config/n8n.conf"
+        content: |
+          server {
+              listen 80;
+              server_name localhost;
+
+              location / {
+                  proxy_pass http://n8n:5678;
+                  proxy_http_version 1.1;
+                  proxy_set_header Upgrade $http_upgrade;
+                  proxy_set_header Connection 'upgrade';
+                  proxy_set_header Host $host;
+                  proxy_cache_bypass $http_upgrade;
+              }
+          }
+
+    - name: Ensure default Nginx config is removed
+      file:
+        path: "/nginx-config/default.conf"
+        state: absent
+
+    - name: Run Nginx container with custom configuration
+      community.docker.docker_container:
+        name: nginx
+        image: nginx
+        state: started
+        restart_policy: always
+        networks:
+          - name: n8n_network
+        ports:
+          - "80:80"
+        volumes:
+          - "/nginx-config:/etc/nginx/conf.d"
+        detach: true
