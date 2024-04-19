@@ -1,4 +1,4 @@
-# Ansible Script Usage README
+# Ansible Script to deply N8N with Nginx as reverse proxy
 
 This README provides a guide on how to use the provided Ansible playbook to deploy and configure Docker containers for n8n (a workflow automation tool) and Nginx as a reverse proxy.
 
