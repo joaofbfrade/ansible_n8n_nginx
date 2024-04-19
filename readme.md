@@ -5,8 +5,6 @@ This README provides a guide on how to use the provided Ansible playbook to depl
 ## Requirements
 
 - **Ansible**: You must have Ansible installed on your local machine or on a control node that will execute the playbook.
-- **Docker**: Ensure Docker is installed on the target host where you intend to deploy the containers.
-- **Docker Compose**: Required for managing multi-container Docker applications.
 
 ## Setup
 
