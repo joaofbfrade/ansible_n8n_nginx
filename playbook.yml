@@ -1,15 +1,19 @@
 ---
 - hosts: localhost
+  vars_files:
+    - vars.yml
   become: yes
   tasks:
     - name: Install Docker Engine
       apt:
         name: docker.io
         state: present
+
     - name: Install Docker CLI
       apt:
         name: docker-compose
         state: present
+
     - name: Start Docker service
       service:
         name: docker
@@ -36,21 +40,16 @@
         name: n8n
         image: docker.n8n.io/n8nio/n8n
         state: started
-        restart_policy: always
         networks:
           - name: n8n_network
         ports:
           - "5678:5678"
         volumes:
           - "n8n_data:/home/node/.n8n"
+        auto_remove: true
         interactive: no
         tty: true
         detach: yes
-
-    - name: Create Nginx configuration directory on host
-      file:
-        path: /nginx-config
-        state: directory
 
     - name: Create nginx volume
       docker_volume:
@@ -59,11 +58,14 @@
 
     - name: Create Nginx reverse proxy configuration
       copy:
-        dest: "/nginx-config/n8n.conf"
+        dest: "/var/lib/docker/volumes/nginx-data/_data/n8n.conf"
         content: |
           server {
-              listen 80;
+              listen 443 ssl;
               server_name localhost;
+
+              ssl_certificate /etc/nginx/ssl/mycert.crt;
+              ssl_certificate_key /etc/nginx/ssl/mykey.key;
 
               location / {
                   proxy_pass http://n8n:5678;
@@ -77,19 +79,23 @@
 
     - name: Ensure default Nginx config is removed
       file:
-        path: "/nginx-config/default.conf"
+        path: "/var/lib/docker/volumes/nginx-data/_data/default.conf"
         state: absent
 
-    - name: Run Nginx container with custom configuration
+    - name: Copy certificates
+      copy:
+        src: "{{ playbook_dir }}/certs/"
+        dest: "/var/lib/docker/volumes/nginx-data/_data/certs/"
+
+    - name: Run Nginx container with custom configuration and certificates
       community.docker.docker_container:
         name: nginx
         image: nginx
         state: started
-        restart_policy: always
         networks:
           - name: n8n_network
         ports:
-          - "80:80"
+          - "443:443"
         volumes:
-          - "/nginx-config:/etc/nginx/conf.d"
-        detach: true
+          - "/var/lib/docker/volumes/nginx-data/_data/certs:/etc/nginx/ssl:ro"
+          - "nginx-data:/etc/nginx/conf.d"
